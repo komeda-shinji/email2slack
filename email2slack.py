@@ -1,4 +1,6 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
+
+from __future__ import print_function
 
 import re
 import sys
@@ -54,7 +56,8 @@ class EmailParser(object):
 
     @staticmethod
     # ToDo: Try to read value from multiple fields
-    def parse_header(parsed_mail, field: str) -> str:
+    def parse_header(parsed_mail, field):
+        # type: (List[str], str) -> str
         try:
             raw_header = parsed_mail[field]
             decoded_string, charset = decode_header(raw_header)[0]
