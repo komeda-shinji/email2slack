@@ -11,6 +11,7 @@ from email.parser import Parser
 import chardet
 import requests
 
+from bs4 import BeautifulSoup
 
 # ToDo: add doc strings
 
@@ -30,13 +31,17 @@ class EmailParser(object):
         messages = []
         if parsed_mail.is_multipart():
             for m in parsed_mail.get_payload():
-                messages.append(EmailParser.extract_message(m))
+                extracted = EmailParser.extract_message(m)
+                if extracted:
+                    messages.append(extracted)
         else:
-            messages.append(EmailParser.extract_message(parsed_mail))
+            extracted = EmailParser.extract_message(parsed_mail)
+            if extracted:
+                messages.append(extracted)
 
         for m in messages:
             content_type = m[0]
-            body = m[1]
+            body = m[1].replace('\r\n', '\n')
 
             if content_type is None or content_type.startswith('text/plain'):
                 result['body-plain'] = body
@@ -48,6 +53,8 @@ class EmailParser(object):
     @staticmethod
     def extract_message(message):
         body = message.get_payload(decode=True)
+        if not body:
+            return None
         charset = chardet.detect(body)['encoding']
         if charset is None:
             charset = 'utf-8'
@@ -55,19 +62,24 @@ class EmailParser(object):
         return message['Content-Type'], body.decode(encoding=charset)
 
     @staticmethod
-    # ToDo: Try to read value from multiple fields
     def parse_header(parsed_mail, field):
         # type: (List[str], str) -> str
-        try:
-            raw_header = parsed_mail[field]
-            decoded_string, charset = decode_header(raw_header)[0]
-            if charset:
-                decoded_string = decoded_string.decode(charset)
-            return decoded_string
-
-        except TypeError:
-            return ''
-
+        decoded = []
+        raw_header = parsed_mail[field]
+        # decode_header does not work well in some case,
+        # eg. FW: =?ISO-2022-JP?B?GyRCR1s/LklURz0bKEI=?=: 
+        for chunk in re.split(r'(=\?[^?]+\?[BQ]\?[^?]+\?=)', raw_header):
+            if chunk.find('=?') >= 0:
+                for decoded_chunk, charset in decode_header(chunk):
+                    if charset:
+                        try:
+                            decoded_chunk = decoded_chunk.decode(charset)
+                        except TypeError:
+                            pass
+                    decoded.append(decoded_chunk)
+            elif chunk:
+                decoded.append(chunk)
+        return re.sub(r'\r\n\s+', ' ', ''.join(decoded))
 
 class Slack(object):
     def __init__(self):
@@ -87,7 +99,10 @@ class Slack(object):
         address_to = mail['To']
         address_from = mail['From']
         subject = mail['Subject']
-        body = mail['body-plain']  # ToDo: HTML email support
+        if mail['body-plain']:
+            body = mail['body-plain']
+        elif mail['body-html']:
+            body = re.sub('\n+', '\n', BeautifulSoup(mail['body-html'], "lxml").get_text()).lstrip('\n')
 
         text = 'From: {:s}\nTo: {:s}\nSubject: {:s}\n\n{:s}'.format(address_from, address_to, subject, body)
 
