@@ -361,6 +361,11 @@ class Slack(object):
                     - len('``````\n')
 
         while body:
+            quote = re.match(r'\s*(>\s*)+', body[0])
+            if quote:
+                quote = quote.group(0)
+               if len(quote) >= 10:
+                   break
             i = 0
             l = 0
             lines = len(body)
