@@ -364,7 +364,7 @@ class Slack(object):
             quote = re.match(r'\s*(>\s*)+', body[0])
             if quote:
                 quote = quote.group(0)
-               if len(quote) >= 10:
+               if len(quote) >= 5:
                    break
             i = 0
             l = 0
@@ -373,6 +373,8 @@ class Slack(object):
                   l + len(escaped[i]) + increment[i] + 1 < msg_limit:
                 l += len(escaped[i]) + increment[i] + 1
                 i += 1
+            if i == 0:
+                break
             chunk = '\n'.join(escaped[0:i]) + '\n'
             text = '{:s}```{:s}```'.format(heading, chunk)
             self.__post(url[0], self.__payload(text, channel=channel[0]))
